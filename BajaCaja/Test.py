@@ -2,27 +2,31 @@ import cv2
 import subprocess
 import numpy as np
 
-# Inicia a câmera usando libcamera-vid e escreve para stdout
-cmd = "libcamera-vid -t 0 --inline -n --width 640 --height 480 --framerate 30 --codec yuv420 --output -"
-pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+# Inicia a captura da câmera usando libcamera-vid com saída MJPEG
+cmd = "libcamera-vid -t 0 --inline -n --width 640 --height 480 --framerate 30 --codec mjpeg --output -"
+pipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-# Definir o tamanho do frame (640x480 com 1.5 bytes por pixel no formato YUV420)
-frame_size = int(640 * 480 * 1.5)
-
+# Loop de captura de frames
 while True:
-    raw_data = pipe.stdout.read(frame_size)
-    if len(raw_data) != frame_size:
-        break
-    
-    # Converter YUV420 para RGB
-    yuv_frame = np.frombuffer(raw_data, dtype=np.uint8).reshape((int(640 * 1.5), 480))
-    frame = cv2.cvtColor(yuv_frame, cv2.COLOR_YUV2BGR_I420)
-
-    # Mostrar a imagem
-    cv2.imshow("Camera", frame)
-
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    # Lê os dados brutos da saída do pipe
+    raw_data = pipe.stdout.read(640 * 480 * 3)  # 3 bytes por pixel para MJPEG
+    if len(raw_data) == 0:
         break
 
+    # Converte os dados brutos em um array numpy
+    frame = np.frombuffer(raw_data, dtype=np.uint8)
+
+    # Decodifica o frame MJPEG
+    frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
+
+    if frame is not None:
+        # Exibe o frame
+        cv2.imshow("Camera", frame)
+
+        # Verifica se a tecla 'q' foi pressionada para sair
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+# Libera os recursos
 cv2.destroyAllWindows()
 pipe.terminate()
